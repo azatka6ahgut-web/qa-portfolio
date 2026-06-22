@@ -1,0 +1,22 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        run: docker build -t qa-portfolio .
+
+      - name: Check container starts
+        run: |
+          docker run -d -p 5000:5000 --name qa-api qa-portfolio
+          sleep 3
+          curl http://localhost:5000/health
