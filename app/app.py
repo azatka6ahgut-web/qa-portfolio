@@ -1,8 +1,11 @@
 import os
+import jwt
 import psycopg2
 from flask import Flask, jsonify, request
+from functools import wraps
 
 app = Flask(__name__)
+SECRET_KEY = "qa-portfolio-secret"
 
 def get_db():
     return psycopg2.connect(os.environ.get("DATABASE_URL"))
@@ -22,12 +25,40 @@ def init_db():
     cur.close()
     conn.close()
 
+# Декоратор для проверки токена
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get("Authorization")
+        if not token:
+            return jsonify({"error": "Token is missing"}), 401
+        try:
+            token = token.replace("Bearer ", "")
+            jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+# POST /login — получить токен
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    if not data or "username" not in data or "password" not in data:
+        return jsonify({"error": "Username and password required"}), 400
+    if data["username"] == "admin" and data["password"] == "password":
+        token = jwt.encode({"user": data["username"]}, SECRET_KEY, algorithm="HS256")
+        return jsonify({"token": token})
+    return jsonify({"error": "Invalid credentials"}), 401
+
 # GET /health
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok"})
 
-# GET /orders
+# GET /orders — без токена
 @app.route('/orders', methods=['GET'])
 def get_orders():
     conn = get_db()
@@ -52,8 +83,9 @@ def get_order(order_id):
         return jsonify({"error": "Order not found"}), 404
     return jsonify({"id": row[0], "user": row[1], "amount": row[2], "status": row[3]})
 
-# POST /orders
+# POST /orders — только с токеном
 @app.route('/orders', methods=['POST'])
+@token_required
 def create_order():
     data = request.get_json()
     if not data:
@@ -64,7 +96,6 @@ def create_order():
         return jsonify({"error": "Field 'amount' is required"}), 400
     if data["amount"] <= 0:
         return jsonify({"error": "Amount must be greater than 0"}), 400
-
     conn = get_db()
     cur = conn.cursor()
     cur.execute(
@@ -77,8 +108,9 @@ def create_order():
     conn.close()
     return jsonify({"id": row[0], "user": row[1], "amount": row[2], "status": row[3]}), 201
 
-# DELETE /orders/<id>
+# DELETE /orders/<id> — только с токеном
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
+@token_required
 def delete_order(order_id):
     conn = get_db()
     cur = conn.cursor()
