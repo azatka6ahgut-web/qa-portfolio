@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -15,8 +15,16 @@ jobs:
       - name: Build Docker image
         run: docker build -t qa-portfolio .
 
-      - name: Check container starts
+      - name: Start container
         run: |
           docker run -d -p 5000:5000 --name qa-api qa-portfolio
           sleep 3
-          curl http://localhost:5000/health
+
+      - name: Run pytest
+        run: |
+          docker exec qa-api pip install pytest requests
+          docker cp app/test_api.py qa-api:/app/test_api.py
+          docker exec qa-api pytest /app/test_api.py -v
+
+      - name: Check health endpoint
+        run: curl http://localhost:5000/healthgit
