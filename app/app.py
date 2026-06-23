@@ -20,6 +20,10 @@ limiter = Limiter(
     default_limits=["100 per minute"]
 )
 SECRET_KEY = "qa-portfolio-secret"
+USERS = {
+    "admin": {"password": "password", "role": "admin"},
+    "user":  {"password": "user123",  "role": "user"}
+}
 
 def get_db():
     return psycopg2.connect(os.environ.get("DATABASE_URL"))
@@ -48,12 +52,31 @@ def token_required(f):
             return jsonify({"error": "Token is missing"}), 401
         try:
             token = token.replace("Bearer ", "")
-            jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            request.current_user = payload
         except jwt.ExpiredSignatureError:
             logger.warning("Expired token")
             return jsonify({"error": "Token expired"}), 401
         except jwt.InvalidTokenError:
             logger.warning("Invalid token")
+            return jsonify({"error": "Invalid token"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get("Authorization")
+        if not token:
+            return jsonify({"error": "Token is missing"}), 401
+        try:
+            token = token.replace("Bearer ", "")
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            if payload.get("role") != "admin":
+                logger.warning(f"Access denied — user:{payload.get('user')} role:{payload.get('role')}")
+                return jsonify({"error": "Admin access required"}), 403
+            request.current_user = payload
+        except jwt.InvalidTokenError:
             return jsonify({"error": "Invalid token"}), 401
         return f(*args, **kwargs)
     return decorated
@@ -65,12 +88,22 @@ def login():
     if not data or "username" not in data or "password" not in data:
         logger.warning("Login failed — missing credentials")
         return jsonify({"error": "Username and password required"}), 400
-    if data["username"] == "admin" and data["password"] == "password":
-        token = jwt.encode({"user": data["username"]}, SECRET_KEY, algorithm="HS256")
-        logger.info(f"Login success — user: {data['username']}")
-        return jsonify({"token": token})
-    logger.warning(f"Login failed — invalid credentials for: {data.get('username')}")
-    return jsonify({"error": "Invalid credentials"}), 401
+    
+    username = data["username"]
+    password = data["password"]
+    
+    if username not in USERS or USERS[username]["password"] != password:
+        logger.warning(f"Login failed — invalid credentials for: {username}")
+        return jsonify({"error": "Invalid credentials"}), 401
+    
+    role = USERS[username]["role"]
+    token = jwt.encode(
+        {"user": username, "role": role},
+        SECRET_KEY,
+        algorithm="HS256"
+    )
+    logger.info(f"Login success — user: {username} role: {role}")
+    return jsonify({"token": token, "role": role})
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -104,7 +137,7 @@ def get_order(order_id):
     return jsonify({"id": row[0], "user": row[1], "amount": row[2], "status": row[3]})
 
 @app.route('/orders', methods=['POST'])
-@token_required
+@admin_required
 def create_order():
     data = request.get_json()
     if not data:
@@ -133,7 +166,7 @@ def create_order():
     return jsonify({"id": row[0], "user": row[1], "amount": row[2], "status": row[3]}), 201
 
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
-@token_required
+@admin_required
 def delete_order(order_id):
     conn = get_db()
     cur = conn.cursor()
