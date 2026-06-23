@@ -1,15 +1,15 @@
 import os
 import logging
+import jwt
+import psycopg2
+from flask import Flask, jsonify, request
+from functools import wraps
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)s %(message)s'
 )
 logger = logging.getLogger(__name__)
-import jwt
-import psycopg2
-from flask import Flask, jsonify, request
-from functools import wraps
 
 app = Flask(__name__)
 SECRET_KEY = "qa-portfolio-secret"
@@ -32,40 +32,43 @@ def init_db():
     cur.close()
     conn.close()
 
-# Декоратор для проверки токена
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = request.headers.get("Authorization")
         if not token:
+            logger.warning("Request without token")
             return jsonify({"error": "Token is missing"}), 401
         try:
             token = token.replace("Bearer ", "")
             jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         except jwt.ExpiredSignatureError:
+            logger.warning("Expired token")
             return jsonify({"error": "Token expired"}), 401
         except jwt.InvalidTokenError:
+            logger.warning("Invalid token")
             return jsonify({"error": "Invalid token"}), 401
         return f(*args, **kwargs)
     return decorated
 
-# POST /login — получить токен
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     if not data or "username" not in data or "password" not in data:
+        logger.warning("Login failed — missing credentials")
         return jsonify({"error": "Username and password required"}), 400
     if data["username"] == "admin" and data["password"] == "password":
         token = jwt.encode({"user": data["username"]}, SECRET_KEY, algorithm="HS256")
+        logger.info(f"Login success — user: {data['username']}")
         return jsonify({"token": token})
+    logger.warning(f"Login failed — invalid credentials for: {data.get('username')}")
     return jsonify({"error": "Invalid credentials"}), 401
 
-# GET /health
 @app.route('/health', methods=['GET'])
 def health():
+    logger.info("Health check")
     return jsonify({"status": "ok"})
 
-# GET /orders — без токена
 @app.route('/orders', methods=['GET'])
 def get_orders():
     conn = get_db()
@@ -74,10 +77,10 @@ def get_orders():
     rows = cur.fetchall()
     cur.close()
     conn.close()
+    logger.info(f"GET /orders — returned {len(rows)} orders")
     orders = [{"id": r[0], "user": r[1], "amount": r[2], "status": r[3]} for r in rows]
     return jsonify(orders)
 
-# GET /orders/<id>
 @app.route('/orders/<int:order_id>', methods=['GET'])
 def get_order(order_id):
     conn = get_db()
@@ -87,21 +90,26 @@ def get_order(order_id):
     cur.close()
     conn.close()
     if not row:
+        logger.warning(f"GET /orders/{order_id} — not found")
         return jsonify({"error": "Order not found"}), 404
+    logger.info(f"GET /orders/{order_id} — found")
     return jsonify({"id": row[0], "user": row[1], "amount": row[2], "status": row[3]})
 
-# POST /orders — только с токеном
 @app.route('/orders', methods=['POST'])
 @token_required
 def create_order():
     data = request.get_json()
     if not data:
+        logger.warning("POST /orders — empty body")
         return jsonify({"error": "Request body is required"}), 400
     if "user" not in data:
+        logger.warning("POST /orders — missing field: user")
         return jsonify({"error": "Field 'user' is required"}), 400
     if "amount" not in data:
+        logger.warning("POST /orders — missing field: amount")
         return jsonify({"error": "Field 'amount' is required"}), 400
     if data["amount"] <= 0:
+        logger.warning(f"POST /orders — invalid amount: {data['amount']}")
         return jsonify({"error": "Amount must be greater than 0"}), 400
     conn = get_db()
     cur = conn.cursor()
@@ -113,9 +121,9 @@ def create_order():
     conn.commit()
     cur.close()
     conn.close()
+    logger.info(f"POST /orders — created order id:{row[0]} user:{row[1]} amount:{row[2]}")
     return jsonify({"id": row[0], "user": row[1], "amount": row[2], "status": row[3]}), 201
 
-# DELETE /orders/<id> — только с токеном
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
 @token_required
 def delete_order(order_id):
@@ -125,11 +133,13 @@ def delete_order(order_id):
     if not cur.fetchone():
         cur.close()
         conn.close()
+        logger.warning(f"DELETE /orders/{order_id} — not found")
         return jsonify({"error": "Order not found"}), 404
     cur.execute("DELETE FROM orders WHERE id = %s", (order_id,))
     conn.commit()
     cur.close()
     conn.close()
+    logger.info(f"DELETE /orders/{order_id} — deleted")
     return jsonify({"message": f"Order {order_id} deleted"}), 200
 
 if __name__ == '__main__':
