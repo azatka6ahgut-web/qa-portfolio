@@ -2,6 +2,35 @@ import os
 import logging
 import jwt
 import psycopg2
+from flasgger import Swagger
+
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/apispec.json",
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/swagger"
+}
+
+swagger_template = {
+    "info": {
+        "title": "QA Portfolio API",
+        "description": "REST API для портфолио QA инженера",
+        "version": "1.0.0"
+    },
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask import Flask, jsonify, request
@@ -14,6 +43,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+swagger = Swagger(app, config=swagger_config, template=swagger_template)
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
@@ -84,6 +114,29 @@ def admin_required(f):
 @app.route('/login', methods=['POST'])
 @limiter.limit("5 per minute")
 def login():
+    """
+    Получить JWT токен
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            username:
+              type: string
+              example: admin
+            password:
+              type: string
+              example: password
+    responses:
+      200:
+        description: Токен выдан
+      401:
+        description: Неверные credentials
+      400:
+        description: Не переданы username/password
+    """
     data = request.get_json()
     if not data or "username" not in data or "password" not in data:
         logger.warning("Login failed — missing credentials")
@@ -107,11 +160,27 @@ def login():
 
 @app.route('/health', methods=['GET'])
 def health():
+    """
+    Проверка работоспособности сервиса
+    ---
+    responses:
+      200:
+        description: Сервис работает
+        examples:
+          application/json: {"status": "ok"}
+    """
     logger.info("Health check")
     return jsonify({"status": "ok"})
 
 @app.route('/orders', methods=['GET'])
 def get_orders():
+    """
+    Получить все заказы
+    ---
+    responses:
+      200:
+        description: Список заказов
+    """
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT id, username, amount, status FROM orders")
@@ -124,6 +193,20 @@ def get_orders():
 
 @app.route('/orders/<int:order_id>', methods=['GET'])
 def get_order(order_id):
+    """
+    Получить заказ по ID
+    ---
+    parameters:
+      - in: path
+        name: order_id
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Заказ найден
+      404:
+        description: Заказ не найден
+    """
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT id, username, amount, status FROM orders WHERE id = %s", (order_id,))
@@ -139,6 +222,33 @@ def get_order(order_id):
 @app.route('/orders', methods=['POST'])
 @admin_required
 def create_order():
+    """
+    Создать заказ (только admin)
+    ---
+    security:
+      - Bearer: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            user:
+              type: string
+              example: Azat
+            amount:
+              type: integer
+              example: 5000
+    responses:
+      201:
+        description: Заказ создан
+      400:
+        description: Ошибка валидации
+      401:
+        description: Нет токена
+      403:
+        description: Нет прав
+    """
     data = request.get_json()
     if not data:
         logger.warning("POST /orders — empty body")
@@ -168,6 +278,24 @@ def create_order():
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
 @admin_required
 def delete_order(order_id):
+    """
+    Удалить заказ (только admin)
+    ---
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: order_id
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Заказ удалён
+      404:
+        description: Заказ не найден
+      403:
+        description: Нет прав
+    """
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT id FROM orders WHERE id = %s", (order_id,))
