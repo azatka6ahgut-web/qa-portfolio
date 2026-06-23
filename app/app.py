@@ -2,6 +2,8 @@ import os
 import logging
 import jwt
 import psycopg2
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask import Flask, jsonify, request
 from functools import wraps
 
@@ -12,6 +14,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["100 per minute"]
+)
 SECRET_KEY = "qa-portfolio-secret"
 
 def get_db():
@@ -52,6 +59,7 @@ def token_required(f):
     return decorated
 
 @app.route('/login', methods=['POST'])
+@limiter.limit("5 per minute")
 def login():
     data = request.get_json()
     if not data or "username" not in data or "password" not in data:
