@@ -49,10 +49,11 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["100 per minute"]
 )
-SECRET_KEY = "qa-portfolio-secret"
+SECRET_KEY = os.environ.get("SECRET_KEY", "fallback-secret")
+
 USERS = {
-    "admin": {"password": "password", "role": "admin"},
-    "user":  {"password": "user123",  "role": "user"}
+    "admin": {"password": os.environ.get("ADMIN_PASSWORD", "password"), "role": "admin"},
+    "user":  {"password": os.environ.get("USER_PASSWORD", "user123"),  "role": "user"}
 }
 
 def get_db():
