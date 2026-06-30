@@ -58,11 +58,18 @@ def test_order_not_found_parametrize(order_id):
     (-1,    404),   # отрицательный → 404
     (0,     404),   # ноль → 404
 ])
-@pytest.mark.api
 @pytest.mark.smoke
-def test_order_by_id(order_id, expected_status):
+@pytest.mark.api
+def test_order_by_id_smoke(auth_headers):
+    # Сначала создаём заказ
+    create = requests.post(BASE_URL + "/orders",
+                          headers=auth_headers,
+                          json={"user": "Azat", "amount": 100})
+    order_id = create.json()["id"]
+    
+    # Потом проверяем его
     response = requests.get(BASE_URL + f"/orders/{order_id}")
-    assert response.status_code == expected_status
+    assert response.status_code == 200
 @pytest.mark.api
 def test_order_not_found_error_message():
     response = requests.get (BASE_URL+f"/orders/99999")
