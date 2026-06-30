@@ -48,6 +48,8 @@ jobs:
 
       - name: Install dependencies
         run: pip install pytest requests pytest-html
+      - name: Install dependencies
+        run: pip install pytest requests pytest-html pydantic
 
       - name: Run pytest
         run: python -m pytest test_safa.py -v -m smoke
