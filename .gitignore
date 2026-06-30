@@ -1,4 +1,14 @@
+# Секреты
 .env
+
+# Python кэш
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Виртуальное окружение (важно! не пушим в GitHub)
+.venv/
+venv/
+
+# Отчёты (генерируются локально)
+report.html
