@@ -18,13 +18,22 @@ jobs:
       - name: Start container
         run: |
           docker run -d -p 5000:5000 --name qa-api qa-portfolio
-          sleep 3
-
-      - name: Run pytest
-        run: |
-          docker exec qa-api pip install pytest requests
-          docker cp app/test_api.py qa-api:/app/test_api.py
-          docker exec qa-api pytest /app/test_api.py -v
+          sleep 5
 
       - name: Check health endpoint
-        run: curl http://localhost:5000/healthgit
+        run: curl http://localhost:5000/health
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pytest requests pytest-html
+
+      - name: Run pytest
+        run: python -m pytest test_safa.py -v -m smoke
+
+      - name: Show logs if failed
+        if: failure()
+        run: docker logs qa-api
