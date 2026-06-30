@@ -1,3 +1,15 @@
+from pydantic import BaseModel
+from typing import Optional
+
+class OrderSchema(BaseModel):
+    id: int
+    user: str
+    amount: int
+    status: str
+
+class LoginSchema(BaseModel):
+    token: str
+
 import pytest
 import requests
 
@@ -141,6 +153,18 @@ def test_delete_order(auth_headers):
     delete_response = requests.delete(BASE_URL+f"/orders/{order_id}",
                                       headers=auth_headers)
     assert delete_response.status_code == 200
+
+def test_get_single_order():
+    response = requests.get(BASE_URL + "/orders/1")
+    assert response.status_code == 200
+    OrderSchema(**response.json())  # Pydantic сам проверит все поля и типы
+
+def test_orders_data_types():
+    response = requests.get(BASE_URL + "/orders")
+    body = response.json()
+    assert isinstance(body, list)
+    for order in body:
+        OrderSchema(**order)  # валидируем каждый объект
 
 
 

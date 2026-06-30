@@ -3,3 +3,4 @@ psycopg2-binary==2.9.9
 PyJWT==2.8.0
 flask-limiter==3.5.0
 flasgger==0.9.7.1
+pydantic 
