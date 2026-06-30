@@ -52,12 +52,6 @@ def test_order_not_found_parametrize(order_id):
     response = requests.get(BASE_URL+f"/orders/{order_id}")
     assert response.status_code == 404
 
-@pytest.mark.parametrize("order_id, expected_status", [
-    (1,     200),   # существующий заказ → 200
-    (9999,  404),   # несуществующий → 404
-    (-1,    404),   # отрицательный → 404
-    (0,     404),   # ноль → 404
-])
 @pytest.mark.smoke
 @pytest.mark.api
 def test_order_by_id_smoke(auth_headers):
