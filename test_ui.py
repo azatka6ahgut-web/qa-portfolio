@@ -5,11 +5,36 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+from pages.checkbox_page import CheckboxPage
+from pages.dropdown_page import DropdownPage
+
+def test_checkbox_pom(browser):
+    page = CheckboxPage(browser)
+    page.open()
+    
+    # Проверяем начальное состояние
+    assert not page.is_checked(0)  # первый не отмечен
+    assert page.is_checked(1)      # второй отмечен
+    
+    # Кликаем первый
+    page.click_checkbox(0)
+    
+    # Проверяем что изменилось
+    assert page.is_checked(0)
 
 @pytest.fixture
 def browser():
+    # Настройки браузера
+    options = Options()
+    options.add_argument("--headless")        # без окна
+    options.add_argument("--no-sandbox")      # нужно для CI
+    options.add_argument("--disable-dev-shm-usage")  # нужно для CI
+    options.add_argument("--window-size=1920,1080")  # размер экрана
+    
     driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install())
+        service=Service(ChromeDriverManager().install()),
+        options=options    # ← передаём настройки
     )
     driver.implicitly_wait(5)
     yield driver
@@ -89,3 +114,14 @@ def test_dynamic_loading(browser):
           EC.visibility_of_element_located((By.ID, "finish"))
      )
      assert "Hello World" in hello.text
+
+
+def test_dropdown_pom(browser):
+    page = DropdownPage(browser)
+    page.open()
+    
+    page.select_option("Option 1")
+    assert page.get_selected_text() == "Option 1"
+    
+    page.select_option("Option 2")
+    assert page.get_selected_text() == "Option 2"
