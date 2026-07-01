@@ -4,3 +4,4 @@ PyJWT==2.8.0
 flask-limiter==3.5.0
 flasgger==0.9.7.1
 pydantic 
+allure-pytest

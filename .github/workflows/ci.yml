@@ -47,7 +47,8 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install pytest requests pytest-html
+        run: pip install pytest requests pytest-html pydantic allure-pytest
+        
       - name: Install dependencies
         run: pip install pytest requests pytest-html pydantic
 

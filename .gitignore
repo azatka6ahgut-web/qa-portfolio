@@ -12,3 +12,6 @@ venv/
 
 # Отчёты (генерируются локально)
 report.html
+
+allure-results/
+allure-report/
