@@ -1,3 +1,6 @@
+import psycopg2
+import os
+
 from pydantic import BaseModel
 from typing import Optional
 
@@ -14,6 +17,7 @@ class LoginSchema(BaseModel):
 import pytest
 import requests
 import allure
+
 
 
 
@@ -228,5 +232,35 @@ def test_create_order(auth_headers):
         assert response.status_code == 201
         assert "id" in response.json()
 
+
+@pytest.mark.api
+def test_order_saved_in_db(auth_headers):
+    # ШАГ 1 — создаём заказ через API
+    response = requests.post(
+        BASE_URL + "/orders",
+        headers=auth_headers,
+        json={"user": "Azat", "amount": 9999}
+    )
+    assert response.status_code == 201
+    order_id = response.json()["id"]
+
+    # ШАГ 2 — подключаемся к БД и проверяем
+    conn = psycopg2.connect(
+        "postgresql://admin:password@localhost:5432/orders_db"
+    )
+    cursor = conn.cursor()
+    
+    # ищем заказ в БД по id
+    cursor.execute(
+        "SELECT id, user, amount, status FROM orders WHERE id = %s",
+        (order_id,)
+    )
+    order = cursor.fetchone()
+    conn.close()
+
+    # ШАГ 3 — проверяем что данные правильные
+    assert order is not None           # заказ существует в БД
+    assert order[2] == 9999            # amount правильный
+    assert order[3] == "created"       # статус правильный
 
     
