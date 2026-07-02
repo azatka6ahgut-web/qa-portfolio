@@ -125,3 +125,20 @@ def test_dropdown_pom(browser):
     
     page.select_option("Option 2")
     assert page.get_selected_text() == "Option 2"
+
+@pytest.mark.parametrize("username, password, expected", [
+    ("tomsmith", "SuperSecretPassword!", True),   # верный → залогинен
+    ("tomsmith", "wrongpassword", False),          # неверный пароль → нет
+    ("wronguser", "SuperSecretPassword!", False),  # неверный юзер → нет
+    ("", "", False),                               # пустой → нет
+])
+def test_login_parametrized(browser, username, password, expected):
+    # ARRANGE
+    page = LoginPage(browser)
+    page.open()
+    
+    # ACT
+    page.login(username, password)
+    
+    # ASSERT
+    assert page.is_logged_in() == expected
