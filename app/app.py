@@ -174,6 +174,7 @@ def health():
     return jsonify({"status": "ok"})
 
 @app.route('/orders', methods=['GET'])
+@token_required
 def get_orders():
     """
     Получить все заказы
@@ -193,6 +194,7 @@ def get_orders():
     return jsonify(orders)
 
 @app.route('/orders/<int:order_id>', methods=['GET'])
+@token_required
 def get_order(order_id):
     """
     Получить заказ по ID
@@ -214,12 +216,22 @@ def get_order(order_id):
     row = cur.fetchone()
     cur.close()
     conn.close()
+    
+    
+    role = request.current_user.get("role")
+    username_from_token = request.current_user.get("user")
+    
     if not row:
         logger.warning(f"GET /orders/{order_id} — not found")
         return jsonify({"error": "Order not found"}), 404
-    logger.info(f"GET /orders/{order_id} — found")
-    return jsonify({"id": row[0], "user": row[1], "amount": row[2], "status": row[3]})
-
+    
+    username_from_order = row[1]
+    
+    if role == "admin" or username_from_token == username_from_order:
+         logger.info(f"GET /orders/{order_id} — found")
+         return jsonify({"id": row[0], "user": row[1], "amount": row[2], "status": row[3]})
+    else:
+         return jsonify({"error": "Access denied — not your order"}), 403
 @app.route('/orders', methods=['POST'])
 @admin_required
 def create_order():
