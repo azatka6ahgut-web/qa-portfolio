@@ -103,7 +103,8 @@ def test_order_by_id_smoke(auth_headers):
     order_id = create.json()["id"]
     
     # Потом проверяем его
-    response = requests.get(BASE_URL + f"/orders/{order_id}")
+    response = requests.get(BASE_URL + f"/orders/{order_id}",
+                            headers=auth_headers)
     assert response.status_code == 200
 
 
