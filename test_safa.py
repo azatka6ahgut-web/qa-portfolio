@@ -265,3 +265,35 @@ def test_order_saved_in_db(auth_headers):
     assert order[3] == "created"       # статус правильный
 
     
+
+
+
+
+
+@app.route('/orders/<int:order_id>/status', methods=['PATCH'])
+@token_required
+def update_order_status(order_id):
+    data = request.get_json()
+    new_status = data.get("status")
+    
+    ALLOWED_STATUSES = ["created", "shipped", "delivered", "cancelled"]
+    if new_status not in ALLOWED_STATUSES:
+        return jsonify({"error": "Invalid status"}), 400
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, amount, status FROM orders WHERE id = %s", (order_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
+        return jsonify({"error": "Order not found"}), 404
+    role = request.current_user.get("role")
+    username_from_token = request.current_user.get("user")
+    username_from_order = row[1]
+
+    if role == "admin":
+        pass  # разрешено, ничего не делаем
+    elif username_from_token != username_from_order:
+        return jsonify({"error": "Access denied — not your order"}), 403
+    elif new_status != "cancelled":
+        return jsonify({"error": "Users can only cancel their own orders"}), 403
